@@ -70,3 +70,14 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Floating animation for credits */
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+.float-anim { animation: floatUp 1.5s ease-out forwards; pointer-events: none; }
+
+input, textarea, select, button {
+  font-family: 'VT323', monospace;
+}

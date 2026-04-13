@@ -5,7 +5,7 @@ import { TRAINING_SKILLS, TrainingSkill } from './trainingSkills';
 import { Users, Briefcase, Terminal, Plus, Code, Play, CheckSquare, X, Network, Zap, Coins, TrendingUp, Lightbulb, Cpu, Rocket, Package, Download, Save, FolderOpen, UploadCloud, FileCode, GraduationCap, MessageSquare, Monitor } from 'lucide-react';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'test_key' });
 
 interface Upgrade {
   id: string;
@@ -87,7 +87,7 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>([]);
   
   const [showNewProject, setShowNewProject] = useState(false);
-  const [newProjectForm, setNewProjectForm] = useState({ title: '', prompt: '' });
+  const [newProjectForm, setNewProjectForm] = useState({ title: '', prompt: '', pipeline: [] as string[] });
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [orgModalAgent, setOrgModalAgent] = useState<Agent | null>(null);
   const [agentModalTab, setAgentModalTab] = useState<'profile' | 'training'>('profile');
@@ -261,10 +261,21 @@ export default function App() {
 
   // Auto-Tasker Logic
   useEffect(() => {
-    if (!autoTaskerEnabled) return;
-
     const interval = setInterval(() => {
-      const openTask = projects.find(p => p.status === 'open');
+      // 1. Process pipelines
+      const pipelineTask = projects.find(p => p.status === 'open' && p.pipeline && p.pipeline.length > (p.pipelineIndex || 0));
+      if (pipelineTask && ops >= 20) {
+        const nextAgentId = pipelineTask.pipeline![pipelineTask.pipelineIndex || 0];
+        const nextAgent = agents.find(a => a.id === nextAgentId);
+        if (nextAgent && nextAgent.status === 'idle') {
+          assignAgent(pipelineTask.id, nextAgentId);
+          return;
+        }
+      }
+
+      // 2. Process Auto-Tasker
+      if (!autoTaskerEnabled) return;
+      const openTask = projects.find(p => p.status === 'open' && (!p.pipeline || p.pipeline.length === 0));
       if (!openTask) return;
 
       const idleAgent = agents.find(a => a.status === 'idle');
@@ -276,7 +287,7 @@ export default function App() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [autoTaskerEnabled, projects, agents, ops]);
+  }, [autoTaskerEnabled, projects, agents, ops, ownedUpgrades]);
 
   const connectGitHub = async () => {
     try {
@@ -443,6 +454,11 @@ export default function App() {
     localStorage.setItem('company_info', JSON.stringify(info));
     setShowCompanySetup(false);
     addLog(`Company profile established: ${info.name}`);
+    if (view === 'start') {
+      setDraftRole('Frontend');
+      setDraftOptions(generateAgents(3, 'Frontend'));
+      setView('draft');
+    }
   };
 
   const openHire = (role: Role) => {
@@ -696,11 +712,13 @@ For each option, provide:
       id: Math.random().toString(36).substr(2, 9),
       title: newProjectForm.title,
       prompt: newProjectForm.prompt,
-      status: 'open'
+      status: 'open',
+      pipeline: newProjectForm.pipeline,
+      pipelineIndex: 0
     };
     setProjects([newProj, ...projects]);
     setShowNewProject(false);
-    setNewProjectForm({ title: '', prompt: '' });
+    setNewProjectForm({ title: '', prompt: '', pipeline: [] });
     addLog(`Created new task: ${newProj.title}`);
   };
 
@@ -1051,7 +1069,7 @@ For each option, provide:
                     )}
                   </div>
                   <div className="flex gap-1 lg:gap-2 flex-wrap justify-end">
-                    <button className="btn-retro flex items-center justify-center gap-1 lg:gap-2 text-[10px] lg:text-lg py-1 px-2" onClick={() => setShowNewProject(true)}>
+                    <button id="new-task-btn" className="btn-retro flex items-center justify-center gap-1 lg:gap-2 text-[10px] lg:text-lg py-1 px-2" onClick={() => setShowNewProject(true)}>
                       <Plus size={14} /> Task
                     </button>
                     <button className="btn-retro flex items-center justify-center gap-1 lg:gap-2 text-[10px] lg:text-lg py-1 px-2" onClick={githubToken ? fetchRepos : connectGitHub}>
@@ -1766,6 +1784,37 @@ For each option, provide:
                       )}
                     </div>
                   )}
+                </div>
+                <div className="mt-2">
+                  <label className="block text-lg lg:text-xl mb-1">Workflow Pipeline (Optional):</label>
+                  <div className="flex gap-2 mb-2 flex-wrap">
+                    {newProjectForm.pipeline.map((agentId, idx) => {
+                      const a = agents.find(ag => ag.id === agentId);
+                      return (
+                        <div key={idx} className="flex items-center gap-1 bg-[#000080] text-white px-2 py-1 text-sm border border-black">
+                          <span>{idx + 1}. {a?.name || 'Unknown'}</span>
+                          <button type="button" className="text-red-400 hover:text-red-200 font-bold ml-1" onClick={() => {
+                            const newPipeline = [...newProjectForm.pipeline];
+                            newPipeline.splice(idx, 1);
+                            setNewProjectForm({...newProjectForm, pipeline: newPipeline});
+                          }}>X</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <select className="panel-inset flex-1 text-lg p-1" id="pipeline-add-select" defaultValue="">
+                      <option value="" disabled>Add agent to pipeline...</option>
+                      {agents.map(a => <option key={a.id} value={a.id}>{a.name} ({a.role})</option>)}
+                    </select>
+                    <button type="button" className="btn-retro text-sm px-2" onClick={() => {
+                      const select = document.getElementById('pipeline-add-select') as HTMLSelectElement;
+                      if (select.value) {
+                        setNewProjectForm({...newProjectForm, pipeline: [...newProjectForm.pipeline, select.value]});
+                        select.value = '';
+                      }
+                    }}>ADD</button>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-3 lg:gap-4 mt-2 lg:mt-4">
                   <button type="button" className="btn-retro text-lg lg:text-xl" onClick={() => setShowNewProject(false)}>CANCEL</button>

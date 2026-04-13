@@ -40,4 +40,6 @@ export interface Project {
   status: 'open' | 'working' | 'completed';
   resultCode?: string;
   githubRepo?: string;
+  pipeline?: string[]; // Array of agent IDs
+  pipelineIndex?: number;
 }
