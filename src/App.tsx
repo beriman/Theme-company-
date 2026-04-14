@@ -4,6 +4,8 @@ import { generateAgents, ROLES } from './gameLogic';
 import { TRAINING_SKILLS, TrainingSkill } from './trainingSkills';
 import { Users, Briefcase, Terminal, Plus, Code, Play, CheckSquare, X, Network, Zap, Coins, TrendingUp, Lightbulb, Cpu, Rocket, Package, Download, Save, FolderOpen, UploadCloud, FileCode, GraduationCap, MessageSquare, Monitor } from 'lucide-react';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
+import OrgChartFlow from './OrgChartFlow';
+import WorkflowFlow from './WorkflowFlow';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'test_key' });
 
@@ -30,7 +32,8 @@ type CEOPeak = 'none' | 'cmo' | 'coo' | 'cto' | 'fullstack' | 'specialist';
 export default function App() {
   const [view, setView] = useState<ViewState>('start');
   const [appClosed, setAppClosed] = useState(false);
-  const [mainTab, setMainTab] = useState<'tasks' | 'orgchart' | 'upgrades' | 'boardroom' | 'files'>('tasks');
+  const [customWorkflow, setCustomWorkflow] = useState<string[]>([]);
+  const [mainTab, setMainTab] = useState<'tasks' | 'orgchart' | 'workflow' | 'upgrades' | 'boardroom' | 'files'>('tasks');
   const [ops, setOps] = useState(100);
   const [opsMax, setOpsMax] = useState(100);
   const [credits, setCredits] = useState(() => {
@@ -797,7 +800,9 @@ For each option, provide:
     }
 
     setOps(prev => prev - cost);
-    const lead = agents.find(a => a.department === agent.department && a.isLead);
+    const directManager = agent.managerId ? agents.find(a => a.id === agent.managerId) : undefined;
+    const deptLead = agents.find(a => a.department === agent.department && a.isLead);
+    const lead = directManager || deptLead;
 
     setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: 'working' } : a));
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: 'working', assignedAgentId: agentId } : p));
@@ -824,12 +829,13 @@ For each option, provide:
     setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: 'thinking' } : a));
 
     try {
-      let finalSystemInstruction = `[${agent.instructionsBundle.entryFile}]\n${agent.instructionsBundle.files[agent.instructionsBundle.entryFile]}\n\n`;
+      let rolePrompt = agent.customPrompt ? agent.customPrompt : agent.instructionsBundle.files[agent.instructionsBundle.entryFile];
+      let finalSystemInstruction = `[${agent.instructionsBundle.entryFile}]\n${rolePrompt}\n\n`;
       finalSystemInstruction += `[personality.md]\n${agent.instructionsBundle.files['personality.md']}\n\n`;
       finalSystemInstruction += `[company_context.md]\n${company ? `Company: ${company.name}\nVision: ${company.vision}\nMission: ${company.mission}` : agent.instructionsBundle.files['company_context.md']}`;
       
       if (lead && lead.id !== agent.id) {
-        finalSystemInstruction += `\n\n[lead_influence.md]\nYour department lead demands: ${lead.personality.promptInjection}`;
+        finalSystemInstruction += `\n\n[lead_influence.md]\nYour manager demands: ${lead.personality.promptInjection}\nAdditionally, your manager's leadership style requires: Strict adherence to the manager's directives.`;
       }
 
       const config: any = {
@@ -933,9 +939,32 @@ For each option, provide:
       }
 
       const reward = Math.floor(50 * marketingLevel);
-      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: 'completed', resultCode: code } : p));
-      addLog(`Task [${project.title}] completed by ${agent.name}! (+${reward} Credits)`);
-      setCredits(prev => prev + reward);
+
+      // Handle Pipeline progression and QA logic
+      if (project.pipeline && project.pipeline.length > 0) {
+        const pIndex = project.pipelineIndex || 0;
+
+        // Simulating QA logic: if current agent is QA, there's a 30% chance they reject it back to previous Dev
+        if (agent.role.includes('QA') && Math.random() < 0.3 && pIndex > 0) {
+           addLog(`QA ${agent.name} found bugs in [${project.title}]! Sending back to previous step.`);
+           setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: 'open', assignedAgentId: undefined, pipelineIndex: pIndex - 1 } : p));
+        } else {
+           // Move to next in pipeline
+           if (pIndex + 1 < project.pipeline.length) {
+              setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: 'open', assignedAgentId: undefined, pipelineIndex: pIndex + 1 } : p));
+              addLog(`Task [${project.title}] finished by ${agent.name}. Moving to next step in workflow.`);
+           } else {
+              setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: 'completed', resultCode: code } : p));
+              addLog(`Task [${project.title}] pipeline fully completed! (+${reward} Credits)`);
+              setCredits(prev => prev + reward);
+           }
+        }
+      } else {
+        setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: 'completed', resultCode: code } : p));
+        addLog(`Task [${project.title}] completed by ${agent.name}! (+${reward} Credits)`);
+        setCredits(prev => prev + reward);
+      }
+
       setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: 'idle' } : a));
     } catch (error) {
       addLog(`Error on [${project.title}]: ${error}`);
@@ -1291,6 +1320,12 @@ For each option, provide:
                   >
                     <Network size={18} /> <span className="hidden sm:inline">Org Chart</span><span className="sm:hidden">Org</span>
                   </button>
+                  <button
+                    className={`btn-retro flex items-center gap-2 px-3 lg:px-4 whitespace-nowrap ${mainTab === 'workflow' ? 'bg-gray-400 inset-shadow' : ''}`}
+                    onClick={() => setMainTab('workflow')}
+                  >
+                    <Terminal size={18} /> <span className="hidden sm:inline">Workflow</span><span className="sm:hidden">Flow</span>
+                  </button>
                   <button 
                     className={`btn-retro flex items-center gap-2 px-3 lg:px-4 whitespace-nowrap ${mainTab === 'upgrades' ? 'bg-gray-400 inset-shadow' : ''}`}
                     onClick={() => setMainTab('upgrades')}
@@ -1484,82 +1519,16 @@ For each option, provide:
                     </div>
                   </div>
                 ) : mainTab === 'orgchart' ? (
-                  <div className="flex-1 overflow-y-auto p-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {DEPARTMENTS.map(dept => {
-                      const deptAgents = agents.filter(a => a.department === dept);
-                      const lead = deptAgents.find(a => a.isLead);
-                      const members = deptAgents.filter(a => !a.isLead);
-                      
-                      const suggestedRole = dept === 'Executive' ? 'CEO' : dept === 'Engineering' ? 'Frontend' : dept === 'Product' ? 'UI/UX' : 'QA';
-
-                      return (
-                        <div key={dept} className="window flex flex-col h-full min-h-[300px]">
-                          <div className="window-header flex justify-between items-center">
-                            <span>{dept} Department</span>
-                            {lead && <span className="text-yellow-300 text-sm animate-pulse">Buff Active!</span>}
-                          </div>
-                          <div className="p-4 bg-[#c0c0c0] flex-1 flex flex-col gap-4">
-                            {/* Lead Section */}
-                            <div className="panel-inset bg-white p-2">
-                              <h4 className="text-[#000080] font-bold text-lg mb-2 border-b-2 border-black">Department Lead</h4>
-                              {lead ? (
-                                <div 
-                                  onClick={() => {
-                                    setOrgModalAgent(lead);
-                                    setEditedBundle(lead.instructionsBundle.files);
-                                    setEditingInstructions(false);
-                                  }} 
-                                  className="cursor-pointer hover:bg-gray-200 p-2 border border-transparent hover:border-black flex items-center gap-3"
-                                >
-                                  <img src={lead.avatar} alt={lead.name} className="w-12 h-12 bg-gray-200 border border-black" style={{ imageRendering: 'pixelated' }} />
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <div className="font-bold text-xl">{lead.name}</div>
-                                      <div className={`w-2 h-2 rounded-full ${lead.status === 'working' ? 'bg-yellow-400 animate-pulse' : lead.status === 'thinking' ? 'bg-blue-400 animate-spin' : 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]'}`}></div>
-                                    </div>
-                                    <div className="text-sm text-gray-600">{lead.role} <span className="italic opacity-60 text-[10px]">({lead.status})</span></div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button onClick={() => openHire(suggestedRole)} className="btn-retro w-full text-gray-600 border-dashed py-2 text-lg">
-                                  + Hire Lead
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Members Section */}
-                            <div className="panel-inset bg-white p-2 flex-1">
-                              <h4 className="text-[#000080] font-bold text-lg mb-2 border-b-2 border-black">Team Members</h4>
-                              <div className="flex flex-col gap-2">
-                                {members.map(m => (
-                                  <div 
-                                    key={m.id} 
-                                    onClick={() => {
-                                      setOrgModalAgent(m);
-                                      setEditedBundle(m.instructionsBundle.files);
-                                      setEditingInstructions(false);
-                                    }} 
-                                    className="cursor-pointer hover:bg-gray-200 p-2 border border-transparent hover:border-black flex items-center gap-3"
-                                  >
-                                    <img src={m.avatar} alt={m.name} className="w-10 h-10 bg-gray-200 border border-black" style={{ imageRendering: 'pixelated' }} />
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <div className="font-bold text-lg">{m.name}</div>
-                                        <div className={`w-2 h-2 rounded-full ${m.status === 'working' ? 'bg-yellow-400 animate-pulse' : m.status === 'thinking' ? 'bg-blue-400 animate-spin' : 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]'}`}></div>
-                                      </div>
-                                      <div className="text-xs text-gray-600">{m.role} <span className="italic opacity-60 text-[8px]">({m.status})</span></div>
-                                    </div>
-                                  </div>
-                                ))}
-                                <button onClick={() => openHire(suggestedRole)} className="btn-retro w-full text-gray-600 border-dashed py-2 text-lg">
-                                  + Hire Member
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="flex-1 flex flex-col bg-[#c0c0c0] p-2">
+                    <OrgChartFlow
+                      agents={agents}
+                      onManagerChange={(agentId, managerId) => setAgents(prev => prev.map(a => a.id === agentId ? { ...a, managerId } : a))}
+                      onEditAgent={(agent) => { setOrgModalAgent(agent); setEditedBundle(agent.instructionsBundle.files); setEditingInstructions(false); }}
+                    />
+                  </div>
+                ) : mainTab === 'workflow' ? (
+                  <div className="flex-1 flex flex-col bg-[#c0c0c0] p-2 overflow-hidden">
+                    <WorkflowFlow agents={agents} workflow={customWorkflow} onWorkflowChange={setCustomWorkflow} />
                   </div>
                 ) : mainTab === 'upgrades' ? (
                   <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
@@ -2083,6 +2052,13 @@ For each option, provide:
                       }
                     }}>ADD</button>
                   </div>
+                  {customWorkflow.length > 0 && (
+                  <div className="mt-2 text-center">
+                    <button type="button" className="btn-retro text-sm px-2 py-1 bg-[#008080] text-white" onClick={() => setNewProjectForm({...newProjectForm, pipeline: [...customWorkflow]})}>
+                      Use Saved Pipeline
+                    </button>
+                  </div>
+                  )}
                 </div>
                 <div className="flex justify-end gap-3 lg:gap-4 mt-2 lg:mt-4">
                   <button type="button" className="btn-retro text-lg lg:text-xl" onClick={() => setShowNewProject(false)}>CANCEL</button>
@@ -2215,7 +2191,39 @@ For each option, provide:
                     </div>
 
                     <div className="panel-inset p-3 bg-white mb-2 flex flex-col gap-2">
-                      <div className="text-lg"><span className="font-bold">LLM Engine:</span> <span className="bg-gray-200 px-1 border border-gray-400">{orgModalAgent.llmModel}</span></div>
+                      <div className="text-lg flex flex-col mb-2">
+                        <span className="font-bold mb-1">LLM Engine:</span>
+                        <select
+                          className="panel-inset px-2 py-1 bg-white text-base"
+                          value={orgModalAgent.llmModel}
+                          onChange={(e) => {
+                            const newVal = e.target.value;
+                            setAgents(prev => prev.map(a => a.id === orgModalAgent.id ? { ...a, llmModel: newVal } : a));
+                            setOrgModalAgent({ ...orgModalAgent, llmModel: newVal });
+                          }}
+                        >
+                          <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                          <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview</option>
+                          <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col mt-2">
+                        <span className="font-bold mb-1 text-lg">Custom Role Prompt:</span>
+                        <textarea
+                          className="w-full h-24 p-2 text-sm bg-white panel-inset resize-y font-mono"
+                          value={orgModalAgent.customPrompt || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setOrgModalAgent({ ...orgModalAgent, customPrompt: val });
+                          }}
+                          onBlur={(e) => {
+                             const val = e.target.value;
+                             setAgents(prev => prev.map(a => a.id === orgModalAgent.id ? { ...a, customPrompt: val } : a));
+                          }}
+                          placeholder="Custom instructions for this specific agent role..."
+                        />
+                        <span className="text-xs text-gray-600 mt-1">This overrides the default template prompt for this agent role.</span>
+                      </div>
                       <div className="text-lg"><span className="font-bold">Work Style:</span> {orgModalAgent.personality.description}</div>
                       <div className="flex flex-col mt-2">
                         <div className="flex justify-between items-center mb-1">
