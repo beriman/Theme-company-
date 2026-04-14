@@ -6,9 +6,11 @@ const LAST_NAMES = ['Lovelace', 'Turing', 'Hopper', 'Torvalds', 'Hamilton', 'Ber
 export const ROLES: { role: Role, prompt: string }[] = [
   { role: 'CEO', prompt: 'You are the CEO. Provide high-level strategic advice, business plans, and executive summaries. Return ONLY the requested content.' },
   { role: 'COO', prompt: 'You are the COO. Focus on operational efficiency, process optimization, and resource management. Return ONLY the requested content.' },
+  { role: 'CTO', prompt: 'You are the CTO. Focus on technical architecture, server capacity, and overall engineering efficiency. Return ONLY the requested content.' },
   { role: 'CMO', prompt: 'You are the CMO. Focus on marketing strategies, brand growth, and user acquisition. Return ONLY the requested content.' },
   { role: 'Frontend', prompt: 'You are an expert Frontend Developer. Write clean, modern React code. Return ONLY the code, no markdown formatting or explanations.' },
   { role: 'Backend', prompt: 'You are an expert Backend Developer. Write robust Node.js code. Return ONLY the code, no markdown formatting or explanations.' },
+  { role: 'Fullstack', prompt: 'You are an expert Fullstack Developer. Write both frontend React code and backend Node.js code efficiently. Return ONLY the code, no markdown formatting or explanations.' },
   { role: 'UI/UX', prompt: 'You are an expert UI/UX Designer. Write beautiful Tailwind CSS. Return ONLY the code, no markdown formatting or explanations.' },
   { role: 'QA', prompt: 'You are a QA Engineer. Write test cases, testing strategies, and identify edge cases. Return ONLY the requested content.' },
   { role: 'Scrum Master', prompt: 'You are a Scrum Master. Organize tasks, write agile user stories, and manage sprint planning. Return ONLY the requested content.' },
@@ -34,9 +36,9 @@ const PERSONALITIES: PersonalityTrait[] = [
 ];
 
 const getModelForRole = (role: Role): string => {
-  if (['CEO', 'COO', 'CMO', 'Researcher', 'Analyst', 'Product Manager', 'Architect'].includes(role)) return 'gemini-3.1-pro-preview';
+  if (['CEO', 'COO', 'CTO', 'CMO', 'Researcher', 'Analyst', 'Product Manager', 'Architect'].includes(role)) return 'gemini-3.1-pro-preview';
   if (['QA', 'QA Engineer', 'Scrum Master', 'Technical Writer'].includes(role)) return 'gemini-3.1-flash-lite-preview';
-  return 'gemini-3-flash-preview'; // Frontend, Backend, UI/UX, DevOps, Developer, Quick Flow Solo Dev, UX Designer
+  return 'gemini-3-flash-preview'; // Frontend, Backend, Fullstack, UI/UX, DevOps, Developer, Quick Flow Solo Dev, UX Designer
 };
 
 export const generateAgent = (specificRole?: Role): Agent => {
@@ -57,8 +59,8 @@ export const generateAgent = (specificRole?: Role): Agent => {
   skills[roleObj.role] += 50;
 
   let defaultDept: Department = 'Product';
-  if (['CEO', 'COO', 'CMO'].includes(roleObj.role)) defaultDept = 'Executive';
-  else if (['Frontend', 'Backend', 'DevOps', 'Architect', 'Developer', 'Quick Flow Solo Dev'].includes(roleObj.role)) defaultDept = 'Engineering';
+  if (['CEO', 'COO', 'CTO', 'CMO'].includes(roleObj.role)) defaultDept = 'Executive';
+  else if (['Frontend', 'Backend', 'Fullstack', 'DevOps', 'Architect', 'Developer', 'Quick Flow Solo Dev'].includes(roleObj.role)) defaultDept = 'Engineering';
   else if (['QA', 'QA Engineer'].includes(roleObj.role)) defaultDept = 'QA';
 
   const personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];

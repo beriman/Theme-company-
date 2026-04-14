@@ -24,7 +24,8 @@ interface LocalFile {
   content?: string;
 }
 
-type ViewState = 'start' | 'draft' | 'main';
+type ViewState = 'start' | 'intro_choice' | 'notary_envelope' | 'company_setup' | 'first_hire' | 'draft' | 'main';
+type CEOPeak = 'none' | 'cmo' | 'coo' | 'cto' | 'fullstack' | 'specialist';
 
 export default function App() {
   const [view, setView] = useState<ViewState>('start');
@@ -53,6 +54,11 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [showCompanySetup, setShowCompanySetup] = useState(false);
+  const [envelopeOpen, setEnvelopeOpen] = useState(false);
+  const [ceoPerk, setCeoPerk] = useState<CEOPeak>(() => {
+    const saved = localStorage.getItem('ceo_perk');
+    return saved ? (saved as CEOPeak) : 'none';
+  });
   const [githubToken, setGithubToken] = useState<string | null>(localStorage.getItem('github_token'));
   const [githubUsername, setGithubUsername] = useState<string | null>(localStorage.getItem('github_username'));
   const [activeRepo, setActiveRepo] = useState<any | null>(() => {
@@ -247,7 +253,8 @@ export default function App() {
       
       setOps(prev => {
         if (prev >= opsMax) {
-          const boost = ownedUpgrades.includes('creativity_boost') ? 2 : 1;
+          let boost = ownedUpgrades.includes('creativity_boost') ? 2 : 1;
+          if (ceoPerk === 'cmo') boost += 1; // CMO boosts creativity
           setCreativity(c => c + (0.1 * boost));
           return opsMax;
         }
@@ -257,7 +264,7 @@ export default function App() {
       setCredits(prev => prev + passiveIncome);
     }, 1000);
     return () => clearInterval(interval);
-  }, [opsMax, opsRate, ownedUpgrades, passiveIncome]);
+  }, [opsMax, opsRate, ownedUpgrades, passiveIncome, ceoPerk]);
 
   // Auto-Tasker Logic
   useEffect(() => {
@@ -304,6 +311,19 @@ export default function App() {
     } catch (err) {
       addLog("Failed to start GitHub connection. Check console for details.");
       console.error("GitHub connection error:", err);
+    }
+  };
+
+  const handleStartApp = () => {
+    if (githubToken || company) {
+      // If already has setup, go main or setup company if needed
+      if (!company) {
+        setShowCompanySetup(true);
+      } else {
+        setView('main');
+      }
+    } else {
+      setView('intro_choice');
     }
   };
 
@@ -729,10 +749,21 @@ For each option, provide:
     setProjects(prev => prev.filter(p => p.id !== projectId));
     setShippedProducts(prev => prev + 1);
     
-    const incomeBoost = Math.floor(5 * marketingLevel);
-    setPassiveIncome(prev => prev + incomeBoost);
+    let baseBoost = 5;
+    if (ceoPerk === 'cmo') baseBoost = 10; // CMO massive increase
+    if (ceoPerk === 'cto') baseBoost = 2; // CTO slower income
     
-    addLog(`Shipped [${project.title}] to market! Passive income +${incomeBoost}/sec.`);
+    let incomeBoost = Math.floor(baseBoost * marketingLevel);
+
+    // COO Flop Risk
+    if (ceoPerk === 'coo' && Math.random() < 0.25) {
+      incomeBoost = Math.floor(incomeBoost / 2);
+      addLog(`[FLOP] Market rejected [${project.title}]. Income reduced. (+${incomeBoost}/sec)`);
+    } else {
+      addLog(`Shipped [${project.title}] to market! Passive income +${incomeBoost}/sec.`);
+    }
+
+    setPassiveIncome(prev => prev + incomeBoost);
   };
 
   const downloadCode = (project: Project) => {
@@ -754,7 +785,9 @@ For each option, provide:
     const agent = agents.find(a => a.id === agentId);
     if (!project || !agent) return;
 
-    const cost = ownedUpgrades.includes('creativity_project_2') ? 10 : 20;
+    let cost = ownedUpgrades.includes('creativity_project_2') ? 10 : 20;
+    if (ceoPerk === 'coo') cost = Math.floor(cost * 0.7); // COO reduces ops cost by 30%
+
     if (ops < cost) {
       addLog(`Not enough Ops! Need ${cost} Ops to start a task.`);
       return;
@@ -768,7 +801,12 @@ For each option, provide:
     addLog(`Assigned ${agent.name} to [${project.title}]. (Consumed ${cost} Ops)`);
 
     // Calculate delay based on personality
-    const baseDelay = 2000 / speedMultiplier;
+    let adjustedSpeedMultiplier = speedMultiplier;
+    if (ceoPerk === 'coo') adjustedSpeedMultiplier *= 1.3; // COO increases global speed
+    if (ceoPerk === 'fullstack') adjustedSpeedMultiplier *= 0.9; // Fullstack is slightly slower generally
+    if (ceoPerk === 'specialist') adjustedSpeedMultiplier *= 1.5; // Specialist is very fast generally
+
+    const baseDelay = 2000 / adjustedSpeedMultiplier;
     const agentTime = agent.personality.timeMultiplier;
     const leadTime = lead ? lead.personality.timeMultiplier : 1.0;
     const totalDelay = baseDelay * agentTime * leadTime;
@@ -939,7 +977,217 @@ For each option, provide:
               <p className="text-lg lg:text-2xl text-center max-w-2xl bg-[#fff] p-4 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 Hire AI agents with unique personas to generate real code for your projects.
               </p>
-              <button className="btn-retro text-2xl lg:text-4xl px-8 lg:px-12 py-4 lg:py-6 mt-4 lg:mt-8" onClick={startDraft}>INITIALIZE STUDIO</button>
+              <button className="btn-retro text-2xl lg:text-4xl px-8 lg:px-12 py-4 lg:py-6 mt-4 lg:mt-8" onClick={handleStartApp}>INITIALIZE STUDIO</button>
+            </div>
+          )}
+
+          {view === 'intro_choice' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
+              <div className="window p-8 max-w-lg w-full flex flex-col gap-6 items-center bg-[#c0c0c0]">
+                <h3 className="text-3xl font-bold text-[#000080] text-center border-b-2 border-black pb-2 w-full">INITIALIZATION MODE</h3>
+
+                <button
+                  className="btn-retro w-full text-2xl py-6 flex flex-col items-center gap-2 bg-green-200"
+                  onClick={() => setView('notary_envelope')}
+                >
+                  <span className="font-bold flex items-center gap-2"><Save size={24}/> New Game</span>
+                  <span className="text-sm font-normal text-gray-700">Use Internal Memory (Play Now)</span>
+                </button>
+
+                <div className="text-xl font-bold">OR</div>
+
+                <button
+                  className="btn-retro w-full text-2xl py-6 flex flex-col items-center gap-2"
+                  onClick={() => {
+                    connectGitHub();
+                    // Assuming they connect successfully, we will rely on the message listener to progress
+                    // But for now, just let them connect. We can keep them here or move them to main.
+                    // For the sake of flow, we can go to company setup after clicking.
+                    setView('notary_envelope');
+                  }}
+                >
+                  <span className="font-bold flex items-center gap-2"><Network size={24}/> Connect GitHub</span>
+                  <span className="text-sm font-normal text-gray-700">Sync projects with your repositories</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {view === 'notary_envelope' && (
+            <div className="flex-1 flex flex-col items-center justify-center p-4">
+              <div className="relative w-64 h-48 cursor-pointer mt-20" onClick={() => {
+                setEnvelopeOpen(true);
+                setTimeout(() => setView('company_setup'), 3500);
+              }}>
+                <div className="absolute inset-0 bg-[#e3cd9a] border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-10 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-red-700 border-2 border-black flex items-center justify-center relative">
+                    <span className="text-white font-bold block scale-[0.6]">SEAL</span>
+                  </div>
+                </div>
+
+                <div className={`absolute left-0 right-0 top-0 h-24 bg-[#d4bc82] border-b-2 border-black z-20 envelope-flap ${envelopeOpen ? 'open' : ''}`} style={{ clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }}></div>
+
+                <div className={`absolute left-4 right-4 top-4 bottom-4 bg-white border-2 border-black p-4 envelope-letter flex flex-col justify-center items-center ${envelopeOpen ? 'slide' : ''}`}>
+                  <h3 className="text-2xl font-bold text-center border-b-2 border-black w-full pb-1 mb-2">OFFICIAL DECREE</h3>
+                  <p className="text-center text-sm leading-tight">By order of the State Notary, your enterprise is fully registered.</p>
+                  <p className="text-center font-bold mt-2 text-red-700">Congratulations, CEO.</p>
+                </div>
+              </div>
+              <div className="mt-12 text-center max-w-lg">
+                <p className="text-2xl bg-white p-4 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                  {!envelopeOpen ? "Click the envelope to receive your official company registration documents from the Notary." : "Reading decree..."}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {view === 'company_setup' && (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto">
+              <div className="window w-full max-w-xl">
+                <div className="window-header">
+                  <span>Company_Registration_Form.exe</span>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget as HTMLFormElement);
+                    const info = {
+                      name: formData.get('name') as string,
+                      vision: formData.get('vision') as string,
+                      mission: formData.get('mission') as string,
+                    };
+                    setCompany(info);
+                    localStorage.setItem('company_info', JSON.stringify(info));
+                    addLog(`Company profile established: ${info.name}`);
+                    setView('first_hire');
+                  }}
+                  className="p-6 flex flex-col gap-6 bg-[#c0c0c0]"
+                >
+                  <div className="text-center mb-2">
+                    <h2 className="text-3xl font-bold text-[#000080]">Form A-1: Enterprise Details</h2>
+                    <p className="text-gray-700">Please provide your new company's core identity.</p>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xl font-bold">Company Name:</label>
+                    <input name="name" defaultValue={company?.name} required className="panel-inset p-3 text-xl bg-white" placeholder="e.g. ThemeCorp" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xl font-bold">Vision Statement:</label>
+                    <textarea name="vision" defaultValue={company?.vision} required className="panel-inset p-3 text-xl bg-white h-24" placeholder="What is your ultimate goal?" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xl font-bold">Mission Statement:</label>
+                    <textarea name="mission" defaultValue={company?.mission} required className="panel-inset p-3 text-xl bg-white h-24" placeholder="How will you achieve it?" />
+                  </div>
+                  <div className="flex justify-end gap-4 mt-4 border-t-2 border-black pt-4">
+                    <button type="submit" className="btn-retro font-bold text-2xl py-3 px-8 text-[#000080]">SIGN & CONTINUE</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {view === 'first_hire' && (
+            <div className="flex-1 flex flex-col p-4 overflow-y-auto gap-4">
+              <div className="bg-[#000080] text-white p-2 text-2xl text-center border-2 border-white shrink-0">
+                <span>SELECT YOUR FIRST EXECUTIVE / LEAD HIRE</span>
+              </div>
+              <p className="text-xl text-center bg-white p-4 border-2 border-black max-w-3xl mx-auto">
+                As the new CEO, your first hire will shape the company's future.
+                Choose carefully, as each role provides unique permanent benefits and drawbacks to your workflow!
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl mx-auto">
+
+                <div className="window p-4 flex flex-col bg-white">
+                  <h3 className="text-3xl font-bold text-[#000080] text-center border-b border-black pb-2 mb-2">The CMO (Marketing)</h3>
+                  <div className="flex-1 text-lg mb-4 flex flex-col gap-2">
+                    <p className="text-green-700 font-bold">+ Boosts Creativity generation.</p>
+                    <p className="text-green-700 font-bold">+ Massively increases project ship rewards.</p>
+                    <p className="text-red-700 font-bold">- Cannot code. You must hire a developer ASAP.</p>
+                    <p className="text-red-700 font-bold">- Slower early game income.</p>
+                  </div>
+                  <button className="btn-retro text-2xl py-3" onClick={() => {
+                    setCeoPerk('cmo');
+                    localStorage.setItem('ceo_perk', 'cmo');
+                    hireAgent(generateAgents(1, 'CMO')[0]);
+                    setView('main');
+                  }}>HIRE CMO</button>
+                </div>
+
+                <div className="window p-4 flex flex-col bg-white">
+                  <h3 className="text-3xl font-bold text-[#000080] text-center border-b border-black pb-2 mb-2">The COO (Operations)</h3>
+                  <div className="flex-1 text-lg mb-4 flex flex-col gap-2">
+                    <p className="text-green-700 font-bold">+ Reduces Ops cost for ALL tasks.</p>
+                    <p className="text-green-700 font-bold">+ Increases global task speed.</p>
+                    <p className="text-red-700 font-bold">- Cannot code.</p>
+                    <p className="text-red-700 font-bold">- Introduces "Flop Risk": Shipped products may occasionally earn half rewards.</p>
+                  </div>
+                  <button className="btn-retro text-2xl py-3" onClick={() => {
+                    setCeoPerk('coo');
+                    localStorage.setItem('ceo_perk', 'coo');
+                    hireAgent(generateAgents(1, 'COO')[0]);
+                    setView('main');
+                  }}>HIRE COO</button>
+                </div>
+
+                <div className="window p-4 flex flex-col bg-white">
+                  <h3 className="text-3xl font-bold text-[#000080] text-center border-b border-black pb-2 mb-2">The CTO (Tech)</h3>
+                  <div className="flex-1 text-lg mb-4 flex flex-col gap-2">
+                    <p className="text-green-700 font-bold">+ Starts with massive Max Ops (+1000).</p>
+                    <p className="text-green-700 font-bold">+ High base Ops regeneration.</p>
+                    <p className="text-red-700 font-bold">- Focuses on tech, not sales. Starting passive income is very low.</p>
+                  </div>
+                  <button className="btn-retro text-2xl py-3" onClick={() => {
+                    setCeoPerk('cto');
+                    localStorage.setItem('ceo_perk', 'cto');
+                    setOpsMax(prev => prev + 1000);
+                    setOpsRate(prev => prev + 5);
+                    hireAgent(generateAgents(1, 'CTO')[0]);
+                    setView('main');
+                  }}>HIRE CTO</button>
+                </div>
+
+                <div className="window p-4 flex flex-col bg-white">
+                  <h3 className="text-3xl font-bold text-[#000080] text-center border-b border-black pb-2 mb-2">The Fullstack Dev</h3>
+                  <div className="flex-1 text-lg mb-4 flex flex-col gap-2">
+                    <p className="text-green-700 font-bold">+ Self-sufficient. Can build entire apps alone.</p>
+                    <p className="text-green-700 font-bold">+ Good balance of early game progression.</p>
+                    <p className="text-red-700 font-bold">- Jack of all trades, master of none. Slightly slower at specific tasks than specialists.</p>
+                  </div>
+                  <button className="btn-retro text-2xl py-3" onClick={() => {
+                    setCeoPerk('fullstack');
+                    localStorage.setItem('ceo_perk', 'fullstack');
+                    hireAgent(generateAgents(1, 'Fullstack')[0]);
+                    setView('main');
+                  }}>HIRE FULLSTACK</button>
+                </div>
+
+                <div className="window p-4 flex flex-col bg-white md:col-span-2 xl:col-span-1">
+                  <h3 className="text-3xl font-bold text-[#000080] text-center border-b border-black pb-2 mb-2">The Specialist (FE/BE)</h3>
+                  <div className="flex-1 text-lg mb-4 flex flex-col gap-2">
+                    <p className="text-green-700 font-bold">+ Extremely fast at their specific domain.</p>
+                    <p className="text-green-700 font-bold">+ Cheapest starting salary (leaves more credits).</p>
+                    <p className="text-red-700 font-bold">- Highly dependent. You MUST hire their counterpart quickly or production stalls.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn-retro flex-1 py-3" onClick={() => {
+                      setCeoPerk('specialist');
+                      localStorage.setItem('ceo_perk', 'specialist');
+                      hireAgent(generateAgents(1, 'Frontend')[0]);
+                      setView('main');
+                    }}>HIRE FRONTEND</button>
+                    <button className="btn-retro flex-1 py-3" onClick={() => {
+                      setCeoPerk('specialist');
+                      localStorage.setItem('ceo_perk', 'specialist');
+                      hireAgent(generateAgents(1, 'Backend')[0]);
+                      setView('main');
+                    }}>HIRE BACKEND</button>
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
 

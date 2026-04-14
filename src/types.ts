@@ -1,4 +1,4 @@
-export type Role = 'CEO' | 'COO' | 'CMO' | 'Frontend' | 'Backend' | 'UI/UX' | 'QA' | 'Scrum Master' | 'Researcher' | 'DevOps' | 'Analyst' | 'Product Manager' | 'Architect' | 'Developer' | 'QA Engineer' | 'Quick Flow Solo Dev' | 'UX Designer' | 'Technical Writer';
+export type Role = 'CEO' | 'COO' | 'CTO' | 'CMO' | 'Frontend' | 'Backend' | 'Fullstack' | 'UI/UX' | 'QA' | 'Scrum Master' | 'Researcher' | 'DevOps' | 'Analyst' | 'Product Manager' | 'Architect' | 'Developer' | 'QA Engineer' | 'Quick Flow Solo Dev' | 'UX Designer' | 'Technical Writer';
 export type Department = 'Executive' | 'Engineering' | 'Product' | 'QA';
 
 export interface PersonalityTrait {

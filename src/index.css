@@ -81,3 +81,34 @@ body {
 input, textarea, select, button {
   font-family: 'VT323', monospace;
 }
+
+/* Notary Envelope Animation */
+@keyframes openEnvelope {
+  0% { transform: rotateX(0deg); }
+  100% { transform: rotateX(180deg); }
+}
+
+@keyframes slideLetter {
+  0% { transform: translateY(0); z-index: 0; }
+  50% { transform: translateY(-100px); z-index: 0; }
+  51% { z-index: 10; }
+  100% { transform: translateY(-50px); z-index: 10; }
+}
+
+.envelope-flap {
+  transform-origin: top;
+  transition: transform 1s ease-in-out;
+}
+
+.envelope-flap.open {
+  animation: openEnvelope 1s forwards;
+}
+
+.envelope-letter {
+  transition: transform 1s ease-in-out;
+}
+
+.envelope-letter.slide {
+  animation: slideLetter 2s forwards;
+  animation-delay: 1s;
+}
