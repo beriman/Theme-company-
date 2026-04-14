@@ -33,7 +33,10 @@ export default function App() {
   const [mainTab, setMainTab] = useState<'tasks' | 'orgchart' | 'upgrades' | 'boardroom' | 'files'>('tasks');
   const [ops, setOps] = useState(100);
   const [opsMax, setOpsMax] = useState(100);
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(() => {
+    const saved = localStorage.getItem('company_info');
+    return saved ? 5000 : 0; // Starts with 5000 if company is set up
+  });
   const [creativity, setCreativity] = useState(0);
   const [shippedProducts, setShippedProducts] = useState(0);
   const [passiveIncome, setPassiveIncome] = useState(0);
@@ -1015,23 +1018,39 @@ For each option, provide:
 
           {view === 'notary_envelope' && (
             <div className="flex-1 flex flex-col items-center justify-center p-4">
-              <div className="relative w-64 h-48 cursor-pointer mt-20" onClick={() => {
+              <div className="relative w-64 h-48 cursor-pointer mt-20 envelope-container" onClick={() => {
+                if(envelopeOpen) return;
                 setEnvelopeOpen(true);
                 setTimeout(() => setView('company_setup'), 3500);
               }}>
-                <div className="absolute inset-0 bg-[#e3cd9a] border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-10 flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-red-700 border-2 border-black flex items-center justify-center relative">
-                    <span className="text-white font-bold block scale-[0.6]">SEAL</span>
+                {/* Back of the envelope */}
+                <div className="absolute inset-0 bg-[#cba86a] border-2 border-black z-0"></div>
+
+                {/* The Letter */}
+                <div className={`absolute left-4 right-4 top-4 bottom-4 bg-white border-2 border-black p-2 envelope-letter flex flex-col justify-start items-center ${envelopeOpen ? 'slide' : ''}`}>
+                  <h3 className="text-xl font-bold text-center border-b-2 border-black w-full pb-1 mb-1">OFFICIAL DECREE</h3>
+                  <p className="text-center text-xs leading-tight">By order of the State Notary, your enterprise is fully registered.</p>
+                  <div className="w-full bg-green-100 border border-green-800 p-1 mt-1 text-center">
+                    <span className="text-green-800 text-xs font-bold block">CAPITAL GRANT:</span>
+                    <span className="text-green-800 text-lg font-bold block font-mono">5000 CR</span>
                   </div>
+                  <p className="text-center font-bold mt-1 text-red-700 text-xs">Congratulations, CEO.</p>
                 </div>
 
-                <div className={`absolute left-0 right-0 top-0 h-24 bg-[#d4bc82] border-b-2 border-black z-20 envelope-flap ${envelopeOpen ? 'open' : ''}`} style={{ clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }}></div>
-
-                <div className={`absolute left-4 right-4 top-4 bottom-4 bg-white border-2 border-black p-4 envelope-letter flex flex-col justify-center items-center ${envelopeOpen ? 'slide' : ''}`}>
-                  <h3 className="text-2xl font-bold text-center border-b-2 border-black w-full pb-1 mb-2">OFFICIAL DECREE</h3>
-                  <p className="text-center text-sm leading-tight">By order of the State Notary, your enterprise is fully registered.</p>
-                  <p className="text-center font-bold mt-2 text-red-700">Congratulations, CEO.</p>
+                {/* Front of the envelope (bottom pocket) */}
+                <div className="absolute inset-0 z-20 overflow-hidden">
+                  <div className="absolute bottom-0 left-0 right-0 h-[60%] bg-[#e3cd9a] border-x-2 border-b-2 border-t border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" style={{ clipPath: 'polygon(0 100%, 100% 100%, 100% 0, 50% 30%, 0 0)' }}></div>
                 </div>
+
+                {/* Flap of the envelope */}
+                <div className={`absolute left-0 right-0 top-0 h-[60%] bg-[#d4bc82] border-2 border-black z-30 envelope-flap flex items-end justify-center pb-2 ${envelopeOpen ? 'open' : ''}`} style={{ clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }}>
+                   {!envelopeOpen && (
+                     <div className="w-10 h-10 rounded-full bg-red-700 border-2 border-black flex items-center justify-center translate-y-4">
+                       <span className="text-white font-bold block scale-[0.5]">SEAL</span>
+                     </div>
+                   )}
+                </div>
+
               </div>
               <div className="mt-12 text-center max-w-lg">
                 <p className="text-2xl bg-white p-4 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
@@ -1057,8 +1076,9 @@ For each option, provide:
                       mission: formData.get('mission') as string,
                     };
                     setCompany(info);
+                    setCredits(5000);
                     localStorage.setItem('company_info', JSON.stringify(info));
-                    addLog(`Company profile established: ${info.name}`);
+                    addLog(`Company profile established: ${info.name}. Granted 5000 CR initial capital.`);
                     setView('first_hire');
                   }}
                   className="p-6 flex flex-col gap-6 bg-[#c0c0c0]"
