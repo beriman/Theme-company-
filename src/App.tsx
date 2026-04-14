@@ -27,7 +27,7 @@ interface LocalFile {
 type ViewState = 'start' | 'draft' | 'main';
 
 export default function App() {
-  const [view, setView] = useState<ViewState>('start');
+  const [view, setView] = useState<ViewState | 'repo_select'>('start');
   const [appClosed, setAppClosed] = useState(false);
   const [mainTab, setMainTab] = useState<'tasks' | 'orgchart' | 'upgrades' | 'boardroom' | 'files'>('tasks');
   const [ops, setOps] = useState(100);
@@ -226,11 +226,35 @@ export default function App() {
         localStorage.setItem('github_token', token);
         addLog("GitHub connected successfully!");
         fetchGithubUser(token);
+        if (view === 'start') {
+          setView('repo_select');
+          // Delay fetch to let state settle
+          setTimeout(() => {
+             fetchReposWithToken(token);
+          }, 500);
+        }
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [view]);
+
+  const fetchReposWithToken = async (token: string) => {
+    setLoadingRepos(true);
+    try {
+      const response = await fetch('/api/github/repos', {
+        headers: { Authorization: `token ${token}` }
+      });
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setRepos(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingRepos(false);
+    }
+  };
 
   useEffect(() => {
     if (githubToken && !githubUsername) {
@@ -433,6 +457,15 @@ export default function App() {
   };
 
   const startDraft = () => {
+    if (!githubToken) {
+      connectGitHub();
+      return;
+    }
+    if (!activeRepo) {
+      setView('repo_select');
+      fetchRepos();
+      return;
+    }
     if (!company) {
       setShowCompanySetup(true);
       return;
@@ -454,7 +487,7 @@ export default function App() {
     localStorage.setItem('company_info', JSON.stringify(info));
     setShowCompanySetup(false);
     addLog(`Company profile established: ${info.name}`);
-    if (view === 'start') {
+    if (view === 'start' || view === 'repo_select') {
       setDraftRole('Frontend');
       setDraftOptions(generateAgents(3, 'Frontend'));
       setView('draft');
@@ -939,7 +972,137 @@ For each option, provide:
               <p className="text-lg lg:text-2xl text-center max-w-2xl bg-[#fff] p-4 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 Hire AI agents with unique personas to generate real code for your projects.
               </p>
-              <button className="btn-retro text-2xl lg:text-4xl px-8 lg:px-12 py-4 lg:py-6 mt-4 lg:mt-8" onClick={startDraft}>INITIALIZE STUDIO</button>
+              <button className="btn-retro text-2xl lg:text-4xl px-8 lg:px-12 py-4 lg:py-6 mt-4 lg:mt-8" onClick={startDraft}>
+                {!githubToken ? '1. CONNECT GITHUB' : !activeRepo ? '2. SELECT REPOSITORY' : !company ? '3. SETUP COMPANY' : 'INITIALIZE STUDIO'}
+              </button>
+            </div>
+          )}
+
+          {view === 'repo_select' && (
+            <div className="flex-1 flex flex-col gap-4 p-4 lg:p-8 max-w-4xl mx-auto w-full h-full overflow-hidden">
+              <div className="bg-[#000080] text-white p-2 lg:p-3 text-xl lg:text-3xl text-center border-2 border-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
+                INITIALIZING WORKSPACE...
+              </div>
+
+              <div className="flex flex-col gap-4 p-4 bg-[#c0c0c0] panel-inset flex-1 overflow-y-auto">
+                <h3 className="text-2xl lg:text-4xl font-bold text-center mb-2">Select Project Target</h3>
+                <p className="text-lg lg:text-xl text-center mb-6">Will this be a new venture (Greenfield) or reviving an existing one (Brownfield)?</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-[400px]">
+                  {/* Greenfield */}
+                  <div className="panel-inset bg-white p-4 flex flex-col">
+                    <h4 className="text-2xl font-bold text-green-700 border-b-2 border-black pb-2 mb-4 flex items-center gap-2">
+                      <FolderOpen /> Greenfield
+                    </h4>
+                    <p className="text-gray-700 mb-4 text-lg flex-1">Create a brand new GitHub repository for your AI agents to build from scratch.</p>
+
+                    <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!githubToken || !newRepoForm.name) return;
+                        setLoadingRepos(true);
+                        try {
+                          const res = await fetch('/api/github/repos', {
+                            method: 'POST',
+                            headers: {
+                              Authorization: `token ${githubToken}`,
+                              'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(newRepoForm)
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.id) {
+                            addLog(`Created new repository: ${data.name}`);
+                            setActiveRepo(data);
+                            localStorage.setItem('active_repo', JSON.stringify(data));
+                            if (!company) {
+                                setShowCompanySetup(true);
+                                setView('start');
+                            } else {
+                                setDraftRole('Frontend');
+                                setDraftOptions(generateAgents(3, 'Frontend'));
+                                setView('draft');
+                            }
+                          } else {
+                            addLog(`Failed to create repo: ${data.error || data.message}`);
+                          }
+                        } catch (err) {
+                          addLog("Error creating repository.");
+                        } finally {
+                          setLoadingRepos(false);
+                        }
+                    }} className="flex flex-col gap-3">
+                      <div>
+                        <label className="block text-lg font-bold mb-1">Repository Name:</label>
+                        <input
+                          required
+                          className="w-full border-2 border-gray-400 p-2 bg-gray-100 focus:bg-white text-lg"
+                          value={newRepoForm.name}
+                          onChange={e => setNewRepoForm({...newRepoForm, name: e.target.value})}
+                          placeholder="e.g., ai-startup-app"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-lg font-bold mb-1">Description:</label>
+                        <input
+                          className="w-full border-2 border-gray-400 p-2 bg-gray-100 focus:bg-white text-lg"
+                          value={newRepoForm.description}
+                          onChange={e => setNewRepoForm({...newRepoForm, description: e.target.value})}
+                          placeholder="My next big thing..."
+                        />
+                      </div>
+                      <button type="submit" className="btn-retro text-xl py-3 mt-2 font-bold text-[#000080]" disabled={loadingRepos}>
+                        {loadingRepos ? 'CREATING...' : 'CREATE & START'}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Brownfield */}
+                  <div className="panel-inset bg-white p-4 flex flex-col h-full">
+                    <h4 className="text-2xl font-bold text-[#000080] border-b-2 border-black pb-2 mb-4 flex items-center gap-2">
+                      <Briefcase /> Brownfield
+                    </h4>
+                    <p className="text-gray-700 mb-4 text-lg">Select an existing repository for your AI agents to maintain and upgrade.</p>
+
+                    <div className="flex-1 border-2 border-gray-400 bg-gray-100 overflow-y-auto p-2 flex flex-col gap-2 min-h-[200px]">
+                      {loadingRepos ? (
+                        <div className="text-center p-4 text-gray-600 font-bold animate-pulse">Loading Repositories...</div>
+                      ) : repos.length === 0 ? (
+                        <div className="text-center p-4 text-gray-600 italic">No repositories found.</div>
+                      ) : (
+                        repos.map(repo => (
+                          <div
+                            key={repo.id}
+                            className={`p-2 border cursor-pointer hover:bg-blue-100 transition-colors ${activeRepo?.id === repo.id ? 'border-blue-500 bg-blue-100 font-bold' : 'border-gray-300 bg-white'}`}
+                            onClick={() => {
+                              setActiveRepo(repo);
+                              localStorage.setItem('active_repo', JSON.stringify(repo));
+                            }}
+                          >
+                            <div className="text-lg truncate">{repo.name}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <button
+                      className="btn-retro text-xl py-3 mt-4 font-bold text-[#000080]"
+                      disabled={!activeRepo || loadingRepos}
+                      onClick={() => {
+                        addLog(`Memory Card set to: ${activeRepo.name}`);
+                        if (!company) {
+                            setShowCompanySetup(true);
+                            setView('start');
+                        } else {
+                            setDraftRole('Frontend');
+                            setDraftOptions(generateAgents(3, 'Frontend'));
+                            setView('draft');
+                        }
+                      }}
+                    >
+                      SELECT & START
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
