@@ -26,10 +26,12 @@ export interface Agent {
   skills: Record<Role, number>;
   department?: Department;
   isLead?: boolean;
+  managerId?: string;
   llmModel: string;
   status: AgentStatus;
   lastHeartbeat: number;
   learnedSkills?: string[];
+  customPrompt?: string;
 }
 
 export interface Project {

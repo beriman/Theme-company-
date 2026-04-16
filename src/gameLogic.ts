@@ -35,7 +35,7 @@ const PERSONALITIES: PersonalityTrait[] = [
   { name: 'Chaotic Good', description: 'Unpredictable but effective.', timeMultiplier: 1.2, promptInjection: 'Use unconventional variable names and creative logic, but make sure it works perfectly.' }
 ];
 
-const getModelForRole = (role: Role): string => {
+export const getModelForRole = (role: Role): string => {
   if (['CEO', 'COO', 'CTO', 'CMO', 'Researcher', 'Analyst', 'Product Manager', 'Architect'].includes(role)) return 'gemini-3.1-pro-preview';
   if (['QA', 'QA Engineer', 'Scrum Master', 'Technical Writer'].includes(role)) return 'gemini-3.1-flash-lite-preview';
   return 'gemini-3-flash-preview'; // Frontend, Backend, Fullstack, UI/UX, DevOps, Developer, Quick Flow Solo Dev, UX Designer
@@ -86,6 +86,8 @@ export const generateAgent = (specificRole?: Role): Agent => {
     llmModel: getModelForRole(roleObj.role),
     status: 'idle',
     lastHeartbeat: Date.now(),
+    managerId: undefined,
+    customPrompt: roleObj.prompt,
   };
 };
 
