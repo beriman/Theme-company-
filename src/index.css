@@ -78,6 +78,19 @@ body {
 }
 .float-anim { animation: floatUp 1.5s ease-out forwards; pointer-events: none; }
 
+/* 32-bit Idle Breathing Animation */
+@keyframes breathing {
+  0% { transform: scaleY(1) translateY(0); }
+  50% { transform: scaleY(1.03) translateY(-2px); }
+  100% { transform: scaleY(1) translateY(0); }
+}
+
+.agent-idle-anim {
+  animation: breathing 3s ease-in-out infinite;
+  image-rendering: pixelated; /* ensures 32-bit retro look */
+  transform-origin: bottom center;
+}
+
 input, textarea, select, button {
   font-family: 'VT323', monospace;
 }

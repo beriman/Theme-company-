@@ -1,4 +1,4 @@
-import { Agent, Role, Department, PersonalityTrait } from './types';
+import { Agent, Role, Department, PersonalityTrait, Trait, RpgStats } from './types';
 
 const FIRST_NAMES = ['Ada', 'Alan', 'Grace', 'Linus', 'Margaret', 'Tim', 'Dennis', 'Ken', 'Bjarne', 'James', 'Steve', 'Bill', 'Sheryl', 'Elon'];
 const LAST_NAMES = ['Lovelace', 'Turing', 'Hopper', 'Torvalds', 'Hamilton', 'Berners-Lee', 'Ritchie', 'Thompson', 'Stroustrup', 'Gosling', 'Jobs', 'Gates', 'Sandberg', 'Musk'];
@@ -35,6 +35,32 @@ const PERSONALITIES: PersonalityTrait[] = [
   { name: 'Chaotic Good', description: 'Unpredictable but effective.', timeMultiplier: 1.2, promptInjection: 'Use unconventional variable names and creative logic, but make sure it works perfectly.' }
 ];
 
+const TRAITS: Trait[] = [
+  { name: 'Coffee Addict', description: 'Works much faster in the morning, but tires out easily by evening.', effect: 'AGI +20 in AM, VIT -10 in PM' },
+  { name: 'Night Owl', description: 'High productivity and intelligence at night.', effect: 'INT +15, AGI +15 after 6 PM' },
+  { name: 'Bug Hunter', description: 'Naturally spots and fixes bugs during development.', effect: 'Reduces bug rate by 20%' },
+  { name: 'Team Player', description: 'Boosts the efficiency of others in the same department.', effect: 'Grants +5 AGI to departmental peers' },
+  { name: 'Lone Wolf', description: 'Works faster alone, slower with others.', effect: 'AGI +25 when isolated, AGI -15 in a team' },
+  { name: 'Natural Leader', description: 'Inspires others and improves team morale.', effect: 'CHA +20, LOY +10 for subordinates' }
+];
+
+const generateRandomStats = (): RpgStats => {
+  // Generate stats with a bell-curve like distribution around 50, min 10, max 99
+  const rollStat = () => {
+    const base = Math.floor(Math.random() * 60) + 20; // 20-79
+    const bonus = Math.floor(Math.random() * 21); // 0-20
+    return Math.min(99, Math.max(10, base + bonus));
+  };
+
+  return {
+    vit: rollStat(),
+    agi: rollStat(),
+    int: rollStat(),
+    cha: rollStat(),
+    loy: Math.floor(Math.random() * 40) + 60, // Loyalty starts relatively high (60-99)
+  };
+};
+
 export const getModelForRole = (role: Role): string => {
   if (['CEO', 'COO', 'CTO', 'CMO', 'Researcher', 'Analyst', 'Product Manager', 'Architect'].includes(role)) return 'gemini-3.1-pro-preview';
   if (['QA', 'QA Engineer', 'Scrum Master', 'Technical Writer'].includes(role)) return 'gemini-3.1-flash-lite-preview';
@@ -65,12 +91,21 @@ export const generateAgent = (specificRole?: Role): Agent => {
 
   const personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
 
+  // Assign 1-2 random traits
+  const numTraits = Math.random() > 0.7 ? 2 : 1;
+  const shuffledTraits = [...TRAITS].sort(() => 0.5 - Math.random());
+  const traits = shuffledTraits.slice(0, numTraits);
+
+  const stats = generateRandomStats();
+
   return {
     id: Math.random().toString(36).substr(2, 9),
     name,
     avatar: `https://api.dicebear.com/9.x/pixel-art/svg?seed=${encodeURIComponent(name)}`,
     role: roleObj.role,
     personality,
+    traits,
+    stats,
     instructionsBundle: {
       mode: 'managed',
       entryFile: 'role.md',

@@ -102,6 +102,7 @@ export default function App() {
   const [newProjectForm, setNewProjectForm] = useState({ title: '', prompt: '', pipeline: [] as string[] });
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [orgModalAgent, setOrgModalAgent] = useState<Agent | null>(null);
+  const [draftModalAgent, setDraftModalAgent] = useState<Agent | null>(null);
   const [agentModalTab, setAgentModalTab] = useState<'profile' | 'training'>('profile');
   const [editingInstructions, setEditingInstructions] = useState<boolean>(false);
   const [editedBundle, setEditedBundle] = useState<Record<string, string>>({});
@@ -1273,15 +1274,24 @@ For each option, provide:
 
                   return (
                     <div key={agent.id} className="window p-4 flex flex-col items-center gap-4 hover:bg-[#d0d0d0] transition-colors">
-                      <img src={agent.avatar} alt={agent.name} className="w-40 h-40 panel-inset bg-white pixelated" style={{ imageRendering: 'pixelated' }} />
-                      <div className="text-center w-full bg-white border border-black p-2">
+                      <img src={agent.avatar} alt={agent.name} className="w-40 h-40 panel-inset bg-white pixelated agent-idle-anim" style={{ imageRendering: 'pixelated' }} />
+                      <div className="text-center w-full bg-white border border-black p-2 relative">
                         <h3 className="text-3xl font-bold">{agent.name}</h3>
                         <p className="text-xl text-[#000080] font-bold">{agent.role}</p>
-                        <p className="text-lg text-gray-700" title={agent.personality.description}>Persona: {agent.personality.name}</p>
+                        <p className="text-lg text-gray-700">Persona: {agent.personality.name}</p>
+                        <button
+                          className="absolute top-1 right-1 bg-gray-300 border border-black px-2 text-sm font-bold hover:bg-gray-400"
+                          onClick={() => setDraftModalAgent(agent)}
+                        >
+                          ?
+                        </button>
                       </div>
                       
                       <div className="w-full panel-inset bg-white text-black p-2 lg:p-3 text-sm lg:text-lg flex-1 flex flex-col gap-1 lg:gap-2">
-                        <div className="text-[#000080] font-bold mb-1 border-b border-black pb-1 text-xs lg:text-lg">Top Skills:</div>
+                        <div className="text-[#000080] font-bold mb-1 border-b border-black pb-1 text-xs lg:text-lg flex justify-between">
+                          <span>Top Skills</span>
+                          <span className="text-gray-500 cursor-pointer hover:underline" onClick={() => setDraftModalAgent(agent)}>More Info &gt;</span>
+                        </div>
                         {topSkills.map(([skill, val]) => (
                           <div key={skill} className="flex flex-col gap-1">
                             <div className="flex justify-between text-[10px] lg:text-sm font-bold">
@@ -2353,6 +2363,116 @@ For each option, provide:
         )}
 
       </div>
+
+      {draftModalAgent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="window w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="window-header">
+              <span>Candidate Profile: {draftModalAgent.name}</span>
+              <button className="btn-retro py-0 px-2" onClick={() => setDraftModalAgent(null)}>X</button>
+            </div>
+            <div className="p-4 bg-[#c0c0c0] flex-1 overflow-y-auto flex flex-col gap-4">
+              <div className="flex gap-4 items-start">
+                <img src={draftModalAgent.avatar} alt={draftModalAgent.name} className="w-32 h-32 panel-inset bg-white pixelated agent-idle-anim" style={{ imageRendering: 'pixelated' }} />
+                <div className="flex-1">
+                  <h2 className="text-3xl font-bold">{draftModalAgent.name}</h2>
+                  <p className="text-xl text-[#000080] font-bold mb-2">{draftModalAgent.role}</p>
+
+                  <div className="panel-inset bg-white p-2">
+                    <p className="font-bold border-b border-black mb-1">Personality</p>
+                    <p className="text-[#000080] font-bold">{draftModalAgent.personality.name}</p>
+                    <p className="text-sm">{draftModalAgent.personality.description}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel-inset bg-white p-2">
+                <p className="font-bold border-b border-black mb-1">RPG Stats</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-bold w-8">VIT:</span>
+                    <div className="flex-1 bg-gray-200 h-2 border border-black p-[1px]">
+                      <div className="bg-red-600 h-full" style={{ width: `${draftModalAgent.stats.vit}%` }}></div>
+                    </div>
+                    <span className="w-6 text-right">{draftModalAgent.stats.vit}</span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-bold w-8">AGI:</span>
+                    <div className="flex-1 bg-gray-200 h-2 border border-black p-[1px]">
+                      <div className="bg-green-600 h-full" style={{ width: `${draftModalAgent.stats.agi}%` }}></div>
+                    </div>
+                    <span className="w-6 text-right">{draftModalAgent.stats.agi}</span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-bold w-8">INT:</span>
+                    <div className="flex-1 bg-gray-200 h-2 border border-black p-[1px]">
+                      <div className="bg-blue-600 h-full" style={{ width: `${draftModalAgent.stats.int}%` }}></div>
+                    </div>
+                    <span className="w-6 text-right">{draftModalAgent.stats.int}</span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-bold w-8">CHA:</span>
+                    <div className="flex-1 bg-gray-200 h-2 border border-black p-[1px]">
+                      <div className="bg-yellow-500 h-full" style={{ width: `${draftModalAgent.stats.cha}%` }}></div>
+                    </div>
+                    <span className="w-6 text-right">{draftModalAgent.stats.cha}</span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2 col-span-2">
+                    <span className="font-bold w-8">LOY:</span>
+                    <div className="flex-1 bg-gray-200 h-2 border border-black p-[1px]">
+                      <div className="bg-purple-600 h-full" style={{ width: `${draftModalAgent.stats.loy}%` }}></div>
+                    </div>
+                    <span className="w-6 text-right">{draftModalAgent.stats.loy}</span>
+                  </div>
+                </div>
+              </div>
+
+              {draftModalAgent.traits && draftModalAgent.traits.length > 0 && (
+                <div className="panel-inset bg-white p-2">
+                  <p className="font-bold border-b border-black mb-1">Traits</p>
+                  <div className="flex flex-col gap-2">
+                    {draftModalAgent.traits.map((trait, idx) => (
+                      <div key={idx} className="text-sm">
+                        <span className="font-bold text-[#000080]">{trait.name}</span>: {trait.description}
+                        <div className="text-xs text-gray-600 italic">Effect: {trait.effect}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="panel-inset bg-white p-2">
+                <p className="font-bold border-b border-black mb-1">Top Skills</p>
+                <div className="flex flex-col gap-1 text-sm">
+                  {Object.entries(draftModalAgent.skills)
+                    .sort(([, a], [, b]) => (b as number) - (a as number))
+                    .slice(0, 5)
+                    .map(([skill, val]) => (
+                      <div key={skill} className="flex justify-between">
+                        <span>{skill}</span>
+                        <span className="font-bold">{val}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+            </div>
+            <div className="p-2 bg-[#c0c0c0] flex justify-end gap-2 border-t border-gray-400">
+              <button className="btn-retro" onClick={() => setDraftModalAgent(null)}>CLOSE</button>
+              <button
+                className="btn-retro font-bold text-[#000080]"
+                onClick={() => {
+                  hireAgent(draftModalAgent);
+                  setDraftModalAgent(null);
+                }}
+              >
+                HIRE AGENT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

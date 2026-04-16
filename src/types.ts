@@ -8,6 +8,20 @@ export interface PersonalityTrait {
   promptInjection: string;
 }
 
+export interface Trait {
+  name: string;
+  description: string;
+  effect: string; // Internal description of the effect
+}
+
+export interface RpgStats {
+  vit: number; // Vitality: Endurance, affects how long they can work before resting
+  agi: number; // Agility: Speed of completing tasks
+  int: number; // Intelligence: Quality of work, reduces bugs
+  cha: number; // Charisma: Communication, team synergy
+  loy: number; // Loyalty: Chance of staying with the company
+}
+
 export interface InstructionsBundle {
   mode: 'managed' | 'external';
   entryFile: string;
@@ -22,6 +36,8 @@ export interface Agent {
   avatar: string;
   role: Role;
   personality: PersonalityTrait;
+  traits: Trait[];
+  stats: RpgStats;
   instructionsBundle: InstructionsBundle;
   skills: Record<Role, number>;
   department?: Department;
